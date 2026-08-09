@@ -171,7 +171,35 @@
     .edit-title { font-weight: 700; color: var(--afei-brand); white-space: nowrap; }
     .edit-count { color: var(--afei-accent); font-weight: 600; white-space: nowrap; }
     body.edit-mode .vr-dot { cursor: move; box-shadow: 0 0 0 2px #FFF, 0 0 0 4px var(--afei-brand), 0 2px 6px rgba(26,28,30,0.5); }
+    .edit-bar.compact { border-color: var(--afei-accent); }
+    .edit-bar.compact .edit-count { color: var(--afei-brand); }
     .leaflet-container { font: inherit; background: #D9D4CC; }
+
+    /* 导出弹窗 */
+    .modal {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(26,28,30,0.5);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal.hidden { display: none; }
+    .modal-box {
+      background: #FFFEFC; border: 1px solid var(--afei-line);
+      border-radius: 14px; padding: 20px;
+      width: 100%; max-width: 640px;
+      max-height: 86vh; overflow: auto;
+      box-shadow: 0 20px 60px rgba(26,28,30,0.3);
+    }
+    .modal-box h3 { font-size: 16px; margin-bottom: 8px; }
+    .modal-tip { font-size: 12px; color: var(--afei-muted); margin-bottom: 12px; line-height: 1.7; }
+    .modal-tip code { background: #F2EFE9; padding: 1px 5px; border-radius: 4px; }
+    #export-text {
+      width: 100%; height: 260px;
+      border: 1px solid var(--afei-line); border-radius: 8px;
+      padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 12px;
+      color: var(--afei-ink); background: #FAF8F5;
+    }
+    .modal-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 
     /* 聚合圆点（阿飞绿系） */
     .marker-cluster-small { background-color: rgba(44,95,45,0.62); }
@@ -261,7 +289,7 @@
     <main class="map-wrap">
       <div id="map-status" class="map-status">加载中…</div>
       <div id="edit-bar" class="edit-bar hidden">
-        <span class="edit-title">📌 拖动标记到正确位置</span>
+        <span class="edit-title" id="edit-title">📌 拖动标记到正确位置</span>
         <span class="edit-count" id="edit-count"></span>
         <button type="button" class="btn" id="btn-export-pos">导出修正</button>
         <button type="button" class="btn" id="btn-clear-pos">清空</button>
@@ -270,6 +298,19 @@
       <div id="map"></div>
       <div class="source-note">VR 内容来源：720zf「成都百亿像素（楼盘版）」，点击标记内「打开 VR」跳转原页面浏览。</div>
     </main>
+  </div>
+
+  <div id="export-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>导出位置修正</h3>
+      <p class="modal-tip">把下面的内容保存为 <code>data/pos-overrides.js</code> 放到项目目录并 push，全站即生效。也可以直接把这段内容发给我，我帮你放好并推送。</p>
+      <textarea id="export-text" readonly spellcheck="false"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="btn-copy-pos">复制内容</button>
+        <button type="button" class="btn" id="btn-download-pos">下载文件</button>
+        <button type="button" class="btn" id="btn-close-modal">关闭</button>
+      </div>
+    </div>
   </div>
 
   <script src="vendor/leaflet.js"></script>

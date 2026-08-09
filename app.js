@@ -214,16 +214,26 @@
     window.__markers = byScene; // 调试用
   }
 
-  function exportOverrides() {
+  function buildPosFileContent() {
     var keys = Object.keys(state.overrides);
-    if (!keys.length) { setStatus("还没有修正记录，请先拖动标记", true); return; }
     var lines = keys.map(function (k) {
       var o = state.overrides[k];
       return "  " + JSON.stringify(k) + ": [" + o.lat + ", " + o.lng + "],";
     });
-    var content =
-      "/* 位置修正（拖动标记导出）——放入 data/pos-overrides.js 并 push，全站生效 */\n" +
+    return "/* 位置修正（拖动标记导出）——保存为 data/pos-overrides.js 并 push，全站生效 */\n" +
       "window.VR_POS_OVERRIDES = {\n" + lines.join("\n") + "\n};\n";
+  }
+
+  function openExportModal() {
+    var keys = Object.keys(state.overrides);
+    if (!keys.length) { setStatus("还没有修正记录，请先拖动标记", true); return; }
+    $("#export-text").value = buildPosFileContent();
+    $("#export-modal").classList.remove("hidden");
+    setStatus("已生成修正文件（" + keys.length + " 处），复制或下载后放入 data/ 推送", false);
+  }
+  function closeExportModal() { $("#export-modal").classList.add("hidden"); }
+  function downloadPosFile() {
+    var content = $("#export-text").value || buildPosFileContent();
     var blob = new Blob([content], { type: "text/javascript;charset=utf-8" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -232,7 +242,33 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    setStatus("已导出 pos-overrides.js（" + keys.length + " 处），放入 data/ 后推送即生效", false);
+  }
+  function copyPosContent() {
+    var text = $("#export-text").value;
+    var done = function () { setStatus("已复制，粘到 data/pos-overrides.js 保存即可", false); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+    } else { fallbackCopy(text, done); }
+  }
+  function fallbackCopy(text, done) {
+    try {
+      $("#export-text").select();
+      document.execCommand("copy");
+      done();
+    } catch (e) { setStatus("复制失败，请手动全选复制", true); }
+  }
+
+  /* 编辑栏可见性：编辑中 → 完整；未编辑但有修正 → 精简；无修正 → 隐藏 */
+  function updateEditBar() {
+    var bar = $("#edit-bar");
+    if (!bar) return;
+    var editing = state.editMode;
+    var has = correctionCount() > 0;
+    bar.classList.toggle("hidden", !editing && !has);
+    bar.classList.toggle("compact", !editing);
+    var t = $("#edit-title"); if (t) t.style.display = editing ? "" : "none";
+    var d = $("#btn-edit-done"); if (d) d.style.display = editing ? "" : "none";
+    updateEditCount();
   }
 
   function openPopupAt(item) {
@@ -459,24 +495,31 @@
     }
     $("#btn-edit").onclick = function () {
       state.editMode = !state.editMode;
-      var bar = $("#edit-bar");
-      if (bar) bar.classList.toggle("hidden", !state.editMode);
       document.body.classList.toggle("edit-mode", state.editMode);
       this.textContent = state.editMode ? "退出编辑" : "编辑位置";
       refresh();
-      updateEditCount();
+      updateEditBar();
     };
-    $("#btn-export-pos").onclick = exportOverrides;
+    $("#btn-export-pos").onclick = openExportModal;
     $("#btn-clear-pos").onclick = function () {
       if (!correctionCount()) return;
       state.overrides = {};
       saveOverrides();
       refresh();
-      updateEditCount();
+      updateEditBar();
       setStatus("已清空全部位置修正", false);
     };
     $("#btn-edit-done").onclick = function () { $("#btn-edit").click(); };
+    $("#btn-copy-pos").onclick = copyPosContent;
+    $("#btn-download-pos").onclick = downloadPosFile;
+    $("#btn-close-modal").onclick = closeExportModal;
+    $("#export-modal").addEventListener("click", function (e) {
+      if (e.target === this) closeExportModal();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeExportModal();
+    });
     initMap();
-    updateEditCount();
+    updateEditBar();
   });
 })();
