@@ -102,13 +102,17 @@
         '<article class="card ' + on + '" data-scene="' + escAttr(item.scene) + '">' +
           '<div class="card-row1">' +
             '<div class="card-title">' + escHtml(item.name) + "</div>" +
-            '<a class="vr-link" href="' + escAttr(item.url) + '" target="_blank" rel="noopener">打开 VR ↗</a>' +
+            '<div class="card-actions">' +
+              '<a class="vr-link detail" href="detail.html?scene=' + encodeURIComponent(item.scene) + '">详情</a>' +
+              '<a class="vr-link" href="' + escAttr(item.url) + '" target="_blank" rel="noopener">打开 VR ↗</a>' +
+            "</div>" +
           "</div>" +
           '<div class="card-meta">' + escHtml(item.district) + (item.plate && item.plate !== "其它" ? " · " + escHtml(item.plate) : "") + "</div>" +
         "</article>"
       );
     }).join("");
     box.onclick = function (e) {
+      if (e.target.closest("a")) return; // 详情/打开VR链接交给浏览器，不触发卡片选中
       var card = e.target.closest("[data-scene]");
       if (!card) return;
       state.selectedId = card.dataset.scene;
@@ -134,7 +138,10 @@
         '<div class="pop-meta">' + escHtml(item.district) +
           (item.plate && item.plate !== "其它" ? " · " + escHtml(item.plate) : "") +
           '<br>VR 场景：' + escHtml(item.scene) + "</div>" +
-        '<a class="pop-open" href="' + escAttr(item.url) + '" target="_blank" rel="noopener">打开 VR 全景 ↗</a>' +
+        '<div class="pop-actions">' +
+          '<a class="pop-detail" href="detail.html?scene=' + encodeURIComponent(item.scene) + '">查看详情</a>' +
+          '<a class="pop-open" href="' + escAttr(item.url) + '" target="_blank" rel="noopener">打开 VR 全景 ↗</a>' +
+        "</div>" +
       "</div>"
     );
   }
