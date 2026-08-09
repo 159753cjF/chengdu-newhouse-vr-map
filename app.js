@@ -229,7 +229,7 @@
     if (!keys.length) { setStatus("还没有修正记录，请先拖动标记", true); return; }
     $("#export-text").value = buildPosFileContent();
     $("#export-modal").classList.remove("hidden");
-    setStatus("已生成修正文件（" + keys.length + " 处），复制或下载后放入 data/ 推送", false);
+    setStatus("已生成修正内容（" + keys.length + " 处），复制发给我即可写进源代码", false);
   }
   function closeExportModal() { $("#export-modal").classList.add("hidden"); }
   function downloadPosFile() {
@@ -245,7 +245,7 @@
   }
   function copyPosContent() {
     var text = $("#export-text").value;
-    var done = function () { setStatus("已复制，粘到 data/pos-overrides.js 保存即可", false); };
+    var done = function () { setStatus("已复制，直接粘贴发给我即可写进源代码", false); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
     } else { fallbackCopy(text, done); }
