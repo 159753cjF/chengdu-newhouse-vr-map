@@ -148,27 +148,30 @@
       var m = L.marker([item.lat, item.lng], { icon: dotIcon(), riseOnHover: true });
       m.bindTooltip(item.name + (item.district !== "其它" ? " · " + item.district : ""), { direction: "top", offset: [0, -10], opacity: 0.92 });
       m.on("click", function () {
+        // 聚合组内的标记用自带 openPopup 可能不显示，统一走独立弹窗
         state.selectedId = item.scene;
         renderList();
-        m.openPopup();
+        openPopupAt(item);
       });
-      m.bindPopup(popupHtml(item), { closeButton: true, autoPanPadding: [12, 12] });
       state.clusters.addLayer(m);
       byScene[item.scene] = m;
     });
     state.byScene = byScene;
   }
 
+  function openPopupAt(item) {
+    if (!item || !state.map) return;
+    L.popup({ autoPanPadding: [12, 12] })
+      .setLatLng([item.lat, item.lng])
+      .setContent(popupHtml(item))
+      .openOn(state.map);
+  }
+
   function openPopupById(scene) {
     var item = VR.find(function (x) { return x.scene === scene; });
     if (!item || !state.map) return;
     state.map.setView([item.lat, item.lng], Math.max(state.map.getZoom(), 14), { animate: true });
-    setTimeout(function () {
-      L.popup({ autoPanPadding: [12, 12] })
-        .setLatLng([item.lat, item.lng])
-        .setContent(popupHtml(item))
-        .openOn(state.map);
-    }, 320);
+    setTimeout(function () { openPopupAt(item); }, 320);
   }
 
   /* ---------- 热力图 ---------- */
@@ -342,6 +345,7 @@
     }
     var map = L.map("map", { center: [30.57, 104.06], zoom: 10, zoomControl: true, maxZoom: 18 });
     state.map = map;
+    window.__map = map;
     state.clusters = L.markerClusterGroup({
       maxClusterRadius: 48,
       spiderfyOnMaxZoom: true,
