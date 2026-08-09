@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>阿飞懂房 · 成都新房 VR 地图</title>
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <link rel="stylesheet" href="vendor/MarkerCluster.css" />
+  <link rel="stylesheet" href="vendor/MarkerCluster.Default.css" />
+  <style>
+    :root {
+      --afei-brand: #2C5F2D;
+      --afei-accent: #B8422E;
+      --afei-ink: #1A1C1E;
+      --afei-muted: #6C7278;
+      --afei-paper: #F7F5F2;
+      --afei-line: #E4E0DA;
+      --afei-on-brand: #F7F5F2;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--afei-ink);
+      background: var(--afei-paper);
+      overflow: hidden;
+    }
+    .topbar {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--afei-line);
+      background: #F2EFE9;
+      z-index: 20;
+      position: relative;
+    }
+    .logo { font-weight: 700; font-size: 15px; color: var(--afei-brand); white-space: nowrap; }
+    .logo span { color: var(--afei-muted); font-weight: 500; font-size: 12px; margin-left: 8px; }
+    .top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .btn, .btn-ghost {
+      border: 1px solid var(--afei-line);
+      background: var(--afei-paper);
+      color: var(--afei-ink);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn:hover, .btn-ghost:hover { border-color: var(--afei-brand); color: var(--afei-brand); }
+
+    .layout { display: grid; grid-template-columns: 360px 1fr; height: calc(100% - 54px); }
+
+    .panel {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--afei-line);
+      background: var(--afei-paper);
+      min-height: 0;
+    }
+    .filters { padding: 12px 14px 8px; border-bottom: 1px solid var(--afei-line); background: #F2EFE9; }
+    .filter-row { margin-bottom: 8px; }
+    .filter-label { font-size: 11px; color: var(--afei-muted); margin-bottom: 6px; letter-spacing: 0.04em; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      border: 1px solid var(--afei-line);
+      background: var(--afei-paper);
+      color: var(--afei-ink);
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .chip.on { background: var(--afei-brand); border-color: var(--afei-brand); color: var(--afei-on-brand); }
+    #q {
+      width: 100%;
+      border: 1px solid var(--afei-line);
+      background: #FFFEFC;
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: var(--afei-ink);
+      margin-bottom: 8px;
+    }
+    #q:focus { outline: none; border-color: var(--afei-brand); }
+    #filter-plate {
+      width: 100%;
+      border: 1px solid var(--afei-line);
+      background: #FFFEFC;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: var(--afei-ink);
+    }
+
+    .list-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; font-size: 13px; color: var(--afei-muted);
+      border-bottom: 1px solid var(--afei-line);
+    }
+    .list-head strong { color: var(--afei-ink); }
+    #sort-select {
+      border: 1px solid var(--afei-line);
+      background: var(--afei-paper);
+      border-radius: 6px;
+      padding: 4px 8px; font-size: 12px; color: var(--afei-ink);
+    }
+    #list-body { flex: 1; overflow: auto; padding: 8px; }
+    .empty { text-align: center; color: var(--afei-muted); padding: 40px 16px; font-size: 13px; }
+    .card {
+      padding: 10px 12px;
+      border: 1px solid var(--afei-line);
+      border-radius: 12px;
+      background: #FFFEFC;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .card:hover { border-color: #B8C9B4; }
+    .card.on { border-color: var(--afei-brand); box-shadow: 0 0 0 1px var(--afei-brand); }
+    .card-row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .card-title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+    .card-meta { font-size: 12px; color: var(--afei-muted); line-height: 1.5; margin-top: 3px; }
+    .vr-link {
+      flex: none;
+      display: inline-block;
+      border: 1px solid var(--afei-brand);
+      background: var(--afei-brand);
+      color: var(--afei-on-brand);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .vr-link:hover { filter: brightness(1.12); }
+    .card:hover .vr-link { box-shadow: 0 2px 6px rgba(44,95,45,0.35); }
+
+    .map-wrap { position: relative; min-width: 0; min-height: 0; background: #D9D4CC; }
+    #map { width: 100%; height: 100%; }
+    .map-status {
+      position: absolute; left: 12px; top: 12px; z-index: 10;
+      background: rgba(247,245,242,0.94); border: 1px solid var(--afei-line);
+      border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--afei-muted);
+      pointer-events: none;
+    }
+    .map-status.err { color: var(--afei-accent); }
+    .source-note {
+      position: absolute; left: 12px; bottom: 16px; z-index: 10;
+      background: rgba(247,245,242,0.92); border: 1px solid var(--afei-line);
+      border-radius: 8px; padding: 6px 10px; font-size: 11px; color: var(--afei-muted);
+      pointer-events: none; max-width: 46%;
+      line-height: 1.5;
+    }
+    .leaflet-container { font: inherit; background: #D9D4CC; }
+
+    /* 聚合圆点（阿飞绿系） */
+    .marker-cluster-small { background-color: rgba(44,95,45,0.62); }
+    .marker-cluster-small div { background-color: rgba(44,95,45,0.9); }
+    .marker-cluster-medium { background-color: rgba(183,126,30,0.62); }
+    .marker-cluster-medium div { background-color: rgba(183,126,30,0.9); }
+    .marker-cluster-large { background-color: rgba(184,66,46,0.62); }
+    .marker-cluster-large div { background-color: rgba(184,66,46,0.9); }
+
+    /* 单点标记：绿色圆点 */
+    .vr-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--afei-brand);
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 1px 4px rgba(26,28,30,0.5);
+    }
+    .vr-dot:hover { transform: scale(1.25); }
+    .dot-wrap { background: transparent !important; border: none !important; }
+
+    /* 弹窗 */
+    .vr-pop { min-width: 200px; }
+    .vr-pop h3 { font-size: 14px; color: var(--afei-ink); margin-bottom: 4px; }
+    .vr-pop .pop-meta { font-size: 12px; color: var(--afei-muted); margin-bottom: 4px; line-height: 1.5; }
+    .vr-pop .pop-open {
+      display: inline-block;
+      background: var(--afei-brand); color: var(--afei-on-brand);
+      text-decoration: none; font-size: 13px; font-weight: 600;
+      padding: 7px 14px; border-radius: 999px; margin-top: 6px;
+    }
+    .vr-pop .pop-open:hover { filter: brightness(1.12); }
+    .leaflet-popup-content-wrapper { border-radius: 12px; }
+
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel { border-right: none; border-bottom: 1px solid var(--afei-line); max-height: 45vh; }
+      .topbar .logo span { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">阿飞懂房 · 成都新房 VR 地图<span>成都百亿像素（楼盘版）· 2596 个 VR 场景 · 点击跳转原页面</span></div>
+    <div class="top-actions">
+      <div class="chips" id="basemap-chips" style="display:flex;gap:6px">
+        <button type="button" class="chip on" data-bm="tdt">矢量</button>
+        <button type="button" class="chip" data-bm="satellite">卫星</button>
+        <button type="button" class="chip" data-bm="osm">OSM</button>
+      </div>
+      <button type="button" class="btn-ghost" id="btn-heat">热力图</button>
+      <button type="button" class="btn" id="btn-fit">视野适配</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="filters">
+        <input type="search" id="q" placeholder="搜索：楼盘 / 区县 / 板块…" />
+        <div class="filter-row">
+          <div class="filter-label">区县</div>
+          <div class="chips" id="filter-district"></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-label">板块</div>
+          <select id="filter-plate" aria-label="板块筛选"></select>
+        </div>
+      </div>
+      <div class="list-head">
+        <div>共 <strong id="list-count">0</strong> 个场景</div>
+        <select id="sort-select" aria-label="排序">
+          <option value="district">按区县</option>
+          <option value="name">按名称</option>
+        </select>
+      </div>
+      <div id="list-body"></div>
+    </aside>
+
+    <main class="map-wrap">
+      <div id="map-status" class="map-status">加载中…</div>
+      <div id="map"></div>
+      <div class="source-note">VR 内容来源：720zf「成都百亿像素（楼盘版）」，点击标记内「打开 VR」跳转原页面浏览。</div>
+    </main>
+  </div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="vendor/leaflet-heat.js"></script>
+  <script src="vendor/leaflet.markercluster.js"></script>
+  <script src="data/vr-map-data.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
