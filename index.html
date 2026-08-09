@@ -157,6 +157,20 @@
       pointer-events: none; max-width: 46%;
       line-height: 1.5;
     }
+    .edit-bar {
+      position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+      z-index: 15;
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,254,252,0.98); border: 1px solid var(--afei-brand);
+      border-radius: 10px; padding: 8px 12px; font-size: 12px;
+      box-shadow: 0 6px 20px rgba(26,28,30,0.18);
+      color: var(--afei-ink); max-width: 92%;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .edit-bar.hidden { display: none; }
+    .edit-title { font-weight: 700; color: var(--afei-brand); white-space: nowrap; }
+    .edit-count { color: var(--afei-accent); font-weight: 600; white-space: nowrap; }
+    body.edit-mode .vr-dot { cursor: move; box-shadow: 0 0 0 2px #FFF, 0 0 0 4px var(--afei-brand), 0 2px 6px rgba(26,28,30,0.5); }
     .leaflet-container { font: inherit; background: #D9D4CC; }
 
     /* 聚合圆点（阿飞绿系） */
@@ -216,6 +230,7 @@
         <button type="button" class="chip" data-bm="osm">OSM</button>
       </div>
       <button type="button" class="btn-ghost" id="btn-heat">热力图</button>
+      <button type="button" class="btn-ghost" id="btn-edit">编辑位置</button>
       <button type="button" class="btn" id="btn-fit">视野适配</button>
     </div>
   </header>
@@ -245,6 +260,13 @@
 
     <main class="map-wrap">
       <div id="map-status" class="map-status">加载中…</div>
+      <div id="edit-bar" class="edit-bar hidden">
+        <span class="edit-title">📌 拖动标记到正确位置</span>
+        <span class="edit-count" id="edit-count"></span>
+        <button type="button" class="btn" id="btn-export-pos">导出修正</button>
+        <button type="button" class="btn" id="btn-clear-pos">清空</button>
+        <button type="button" class="btn" id="btn-edit-done">完成</button>
+      </div>
       <div id="map"></div>
       <div class="source-note">VR 内容来源：720zf「成都百亿像素（楼盘版）」，点击标记内「打开 VR」跳转原页面浏览。</div>
     </main>
@@ -254,6 +276,7 @@
   <script src="vendor/leaflet-heat.js"></script>
   <script src="vendor/leaflet.markercluster.js"></script>
   <script src="data/vr-map-data.js"></script>
+  <script src="data/pos-overrides.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

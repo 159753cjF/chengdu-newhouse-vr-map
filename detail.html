@@ -116,6 +116,7 @@
 
   <script src="vendor/leaflet.js"></script>
   <script src="data/vr-map-data.js"></script>
+  <script src="data/pos-overrides.js"></script>
   <script src="data/intros.js"></script>
   <script src="config.js"></script>
   <script>
@@ -166,9 +167,12 @@
         $("#note").textContent = "VR 内容来源：720zf「成都百亿像素（楼盘版）」。";
       }
 
-      // 小地图
+      // 小地图（优先用位置修正）
       if (window.L) {
-        var map = L.map("map", { center: [item.lat, item.lng], zoom: 15, zoomControl: true, scrollWheelZoom: false });
+        var posOv = (window.VR_POS_OVERRIDES || {})[item.scene];
+        var mLat = posOv ? posOv[0] : item.lat;
+        var mLng = posOv ? posOv[1] : item.lng;
+        var map = L.map("map", { center: [mLat, mLng], zoom: 15, zoomControl: true, scrollWheelZoom: false });
         window.__detailMap = map;
         var tk = window.TDT_TK;
         var subdomains = ["0", "1", "2", "3", "4", "5", "6", "7"];
@@ -193,7 +197,7 @@
           }
         });
         setTimeout(function () { if (!ok) $("#map-status").textContent = "正在加载底图…"; }, 1200);
-        L.marker([item.lat, item.lng]).addTo(map)
+        L.marker([mLat, mLng]).addTo(map)
           .bindTooltip(item.name, { direction: "top", offset: [0, -12] })
           .openTooltip();
       } else {

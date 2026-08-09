@@ -7,12 +7,41 @@
 
   var VR = window.VR_MAP_DATA || [];
 
+  /* ---------- 位置修正（拖动标记） ---------- */
+  function normalizeOv(v) {
+    if (Array.isArray(v)) return { lat: v[0], lng: v[1] };
+    return v;
+  }
+  function loadOverrides() {
+    var o = {};
+    try {
+      var raw = localStorage.getItem("vr-pos-overrides");
+      if (raw) { var p = JSON.parse(raw); Object.keys(p).forEach(function (k) { o[k] = normalizeOv(p[k]); }); }
+    } catch (e) {}
+    var shipped = window.VR_POS_OVERRIDES;
+    if (shipped) Object.keys(shipped).forEach(function (k) { o[k] = normalizeOv(shipped[k]); });
+    return o;
+  }
+  function saveOverrides() {
+    try { localStorage.setItem("vr-pos-overrides", JSON.stringify(state.overrides)); } catch (e) {}
+  }
+  function posOf(item) {
+    var o = state.overrides[item.scene];
+    if (o && o.lat != null) return [o.lat, o.lng];
+    return [item.lat, item.lng];
+  }
+  function correctionCount() {
+    return Object.keys(state.overrides).length;
+  }
+
   var state = {
     q: "",
     district: "全部",
     plate: "全部",
     sort: "district",
     heat: false,
+    editMode: false,
+    overrides: loadOverrides(),
     basemap: "tdt",
     map: null,
     clusters: null,
@@ -146,13 +175,19 @@
     );
   }
 
+  function updateEditCount() {
+    var el = $("#edit-count");
+    if (el) el.textContent = "已修正 " + correctionCount() + " 处";
+  }
+
   function renderMarkers() {
     if (!state.map || !state.clusters) return;
     state.clusters.clearLayers();
     var list = filtered();
     var byScene = {};
     list.forEach(function (item) {
-      var m = L.marker([item.lat, item.lng], { icon: dotIcon(), riseOnHover: true });
+      var p = posOf(item);
+      var m = L.marker(p, { icon: dotIcon(), riseOnHover: true, draggable: state.editMode });
       m.bindTooltip(item.name + (item.district !== "其它" ? " · " + item.district : ""), { direction: "top", offset: [0, -10], opacity: 0.92 });
       m.on("click", function () {
         // 聚合组内的标记用自带 openPopup 可能不显示，统一走独立弹窗
@@ -160,10 +195,44 @@
         renderList();
         openPopupAt(item);
       });
+      if (state.editMode) {
+        m.on("dragend", function (ev) {
+          var ll = ev.target.getLatLng();
+          state.overrides[item.scene] = { lat: ll.lat, lng: ll.lng };
+          saveOverrides();
+          item.lat = ll.lat; item.lng = ll.lng;
+          updateEditCount();
+          // 重新入聚合，让新位置参与聚合
+          state.clusters.removeLayer(ev.target);
+          state.clusters.addLayer(ev.target);
+        });
+      }
       state.clusters.addLayer(m);
       byScene[item.scene] = m;
     });
     state.byScene = byScene;
+    window.__markers = byScene; // 调试用
+  }
+
+  function exportOverrides() {
+    var keys = Object.keys(state.overrides);
+    if (!keys.length) { setStatus("还没有修正记录，请先拖动标记", true); return; }
+    var lines = keys.map(function (k) {
+      var o = state.overrides[k];
+      return "  " + JSON.stringify(k) + ": [" + o.lat + ", " + o.lng + "],";
+    });
+    var content =
+      "/* 位置修正（拖动标记导出）——放入 data/pos-overrides.js 并 push，全站生效 */\n" +
+      "window.VR_POS_OVERRIDES = {\n" + lines.join("\n") + "\n};\n";
+    var blob = new Blob([content], { type: "text/javascript;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "pos-overrides.js";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    setStatus("已导出 pos-overrides.js（" + keys.length + " 处），放入 data/ 后推送即生效", false);
   }
 
   function openPopupAt(item) {
@@ -388,6 +457,26 @@
         setBasemap(b.dataset.bm, true);
       };
     }
+    $("#btn-edit").onclick = function () {
+      state.editMode = !state.editMode;
+      var bar = $("#edit-bar");
+      if (bar) bar.classList.toggle("hidden", !state.editMode);
+      document.body.classList.toggle("edit-mode", state.editMode);
+      this.textContent = state.editMode ? "退出编辑" : "编辑位置";
+      refresh();
+      updateEditCount();
+    };
+    $("#btn-export-pos").onclick = exportOverrides;
+    $("#btn-clear-pos").onclick = function () {
+      if (!correctionCount()) return;
+      state.overrides = {};
+      saveOverrides();
+      refresh();
+      updateEditCount();
+      setStatus("已清空全部位置修正", false);
+    };
+    $("#btn-edit-done").onclick = function () { $("#btn-edit").click(); };
     initMap();
+    updateEditCount();
   });
 })();
