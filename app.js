@@ -1,11 +1,101 @@
 /* 阿飞懂房 · 成都新房 VR 地图
- * 数据：window.VR_MAP_DATA（2596 个 VR 场景，含经纬度与 720zf 深链）
+ * 数据：优先走 window.VR_API 接口（Cloudflare Worker），失败回退到本地加密分片 data/chunks/*.bin
  * 底图：天地图（config.js 的 window.TDT_TK），失败回退 OSM
  */
 (function () {
   "use strict";
 
-  var VR = window.VR_MAP_DATA || [];
+  // ---------- 数据加载（接口优先，本地解密回退） ----------
+  var VR = [];
+  var DISTRICTS = [];
+  var PLATES = [];
+
+  async function sha256Hex(str) {
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+
+  async function makeToken() {
+    var secret = window.API_SECRET || "afei-vr-map-2026";
+    var t = String(Date.now());
+    var hex = await sha256Hex(t + secret);
+    return { t: t, s: hex.slice(0, 12) };
+  }
+
+  async function fetchViaApi() {
+    var api = (window.VR_API || "").replace(/\/$/, "");
+    if (!api) return null;
+    try {
+      var tok = await makeToken();
+      var url = api + "?t=" + tok.t + "&s=" + tok.s;
+      // 首次拉全量，视口过滤仍在前端做，保持列表筛选一致
+      var res = await fetch(url, {
+        headers: { "X-API-Time": tok.t, "X-API-Token": tok.s },
+      });
+      if (!res.ok) throw new Error("api " + res.status);
+      var j = await res.json();
+      var arr = j.data || j;
+      if (!Array.isArray(arr) || !arr.length) throw new Error("empty api");
+      return arr;
+    } catch (e) {
+      console.warn("[vr] api failed, fallback to local", e);
+      return null;
+    }
+  }
+
+  async function fetchLocalEncrypted() {
+    // 兼容旧 window.VR_MAP_DATA（如果 index.html 仍引用了旧文件）
+    if (window.VR_MAP_DATA && window.VR_MAP_DATA.length) {
+      return window.VR_MAP_DATA;
+    }
+    try {
+      var base = document.baseURI || location.href;
+      // 两个分片
+      var r0 = await fetch(new URL("data/chunks/0.bin", base));
+      var r1 = await fetch(new URL("data/chunks/1.bin", base));
+      if (!r0.ok || !r1.ok) throw new Error("chunks 404");
+      var b64 = (await r0.text()) + (await r1.text());
+      // base64 -> bytes
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      // xor 解密
+      var key = window.API_SECRET || "afei-vr-map-2026";
+      var kb = new TextEncoder().encode(key);
+      for (var j = 0; j < bytes.length; j++) bytes[j] ^= kb[j % kb.length];
+      var jsonStr = new TextDecoder().decode(bytes);
+      var compact = JSON.parse(jsonStr);
+      // 紧凑还原为原字段
+      var arr = compact.map(function (c) {
+        return { name: c.n, district: c.d, plate: c.p, url: c.u, scene: c.s, lat: c.la, lng: c.lo };
+      });
+      return arr;
+    } catch (e) {
+      console.error("[vr] local decrypt failed", e);
+      // 最后回退：尝试旧明文文件
+      try {
+        var r = await fetch(new URL("data/vr-map-data.js", base));
+        var txt = await r.text();
+        var m = txt.match(/window\.VR_MAP_DATA\s*=\s*(\[.*\])/s);
+        if (m) return JSON.parse(m[1]);
+      } catch (_) {}
+      return [];
+    }
+  }
+
+  async function loadVR() {
+    setStatus("正在加载楼盘数据…", false);
+    var data = await fetchViaApi();
+    if (!data) data = await fetchLocalEncrypted();
+    VR = data || [];
+    // 同步给 detail.html 兼容
+    window.VR_MAP_DATA = VR;
+    // 构建筛选
+    DISTRICTS = buildOptions("district");
+    PLATES = buildOptions("plate");
+    setStatus("已加载 " + VR.length + " 个场景", false);
+    return VR;
+  }
 
   /* ---------- 位置修正（拖动标记） ---------- */
   function normalizeOv(v) {
@@ -65,8 +155,6 @@
     arr.sort(function (a, b) { return b.count - a.count; });
     return arr;
   }
-  var DISTRICTS = buildOptions("district");
-  var PLATES = buildOptions("plate");
 
   function filtered() {
     var list = VR.slice();
@@ -141,7 +229,7 @@
       );
     }).join("");
     box.onclick = function (e) {
-      if (e.target.closest("a")) return; // 详情/打开VR链接交给浏览器，不触发卡片选中
+      if (e.target.closest("a")) return;
       var card = e.target.closest("[data-scene]");
       if (!card) return;
       state.selectedId = card.dataset.scene;
@@ -190,7 +278,6 @@
       var m = L.marker(p, { icon: dotIcon(), riseOnHover: true, draggable: state.editMode });
       m.bindTooltip(item.name + (item.district !== "其它" ? " · " + item.district : ""), { direction: "top", offset: [0, -10], opacity: 0.92 });
       m.on("click", function () {
-        // 聚合组内的标记用自带 openPopup 可能不显示，统一走独立弹窗
         state.selectedId = item.scene;
         renderList();
         openPopupAt(item);
@@ -202,7 +289,6 @@
           saveOverrides();
           item.lat = ll.lat; item.lng = ll.lng;
           updateEditCount();
-          // 重新入聚合，让新位置参与聚合
           state.clusters.removeLayer(ev.target);
           state.clusters.addLayer(ev.target);
         });
@@ -211,7 +297,7 @@
       byScene[item.scene] = m;
     });
     state.byScene = byScene;
-    window.__markers = byScene; // 调试用
+    window.__markers = byScene;
   }
 
   function buildPosFileContent() {
@@ -258,7 +344,6 @@
     } catch (e) { setStatus("复制失败，请手动全选复制", true); }
   }
 
-  /* 编辑栏可见性：编辑中 → 完整；未编辑但有修正 → 精简；无修正 → 隐藏 */
   function updateEditBar() {
     var bar = $("#edit-bar");
     if (!bar) return;
@@ -286,7 +371,6 @@
     setTimeout(function () { openPopupAt(item); }, 320);
   }
 
-  /* ---------- 热力图 ---------- */
   function renderHeat() {
     if (!state.map) return;
     if (state.heatLayer) { state.map.removeLayer(state.heatLayer); state.heatLayer = null; }
@@ -321,7 +405,6 @@
     if (pts.length) state.map.fitBounds(L.latLngBounds(pts).pad(0.1));
   }
 
-  /* ---------- 底图（天地图 / OSM，含高清屏优化与失败回退） ---------- */
   function tdtLayer(T, tk, highDpi) {
     var subdomains = ["0", "1", "2", "3", "4", "5", "6", "7"];
     var common = {
@@ -435,7 +518,6 @@
     });
   }
 
-  /* ---------- 工具 ---------- */
   function escHtml(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -471,10 +553,11 @@
     fitAll();
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", async function () {
     if (location.protocol === "file:") {
       setStatus("请用本地服务打开（python -m http.server）", true);
     }
+    // 绑定静态交互
     $("#q").addEventListener("input", function () {
       state.q = this.value;
       refresh();
@@ -519,6 +602,8 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeExportModal();
     });
+    // 异步加载数据后再初始化地图
+    await loadVR();
     initMap();
     updateEditBar();
   });

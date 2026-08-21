@@ -115,7 +115,6 @@
   </main>
 
   <script src="vendor/leaflet.js"></script>
-  <script src="data/vr-map-data.js"></script>
   <script src="data/pos-overrides.js"></script>
   <script src="data/intros.js"></script>
   <script src="config.js"></script>
@@ -129,8 +128,61 @@
           .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       }
 
+      async function sha256Hex(str) {
+        var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+        return [...new Uint8Array(buf)].map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+      }
+      async function loadVR() {
+        if (window.VR_MAP_DATA && window.VR_MAP_DATA.length) return window.VR_MAP_DATA;
+        var api = (window.VR_API || "").replace(/\/$/, "");
+        if (api) {
+          try {
+            var secret = window.API_SECRET || "afei-vr-map-2026";
+            var t = String(Date.now());
+            var s = (await sha256Hex(t + secret)).slice(0,12);
+            var sceneParam = new URLSearchParams(location.search).get("scene") || "";
+            var res = await fetch(api + "/scene/" + encodeURIComponent(sceneParam) + "?t=" + t + "&s=" + s, { headers: { "X-API-Time": t, "X-API-Token": s }});
+            if (res.ok) {
+              var j = await res.json();
+              if (j && j.scene) { window.VR_MAP_DATA = [j]; return [j]; }
+            }
+            // 全量回退
+            var r2 = await fetch(api + "?t=" + t + "&s=" + s, { headers: { "X-API-Time": t, "X-API-Token": s }});
+            if (r2.ok) { var j2 = await r2.json(); var arr = j2.data || j2; if (Array.isArray(arr) && arr.length) { window.VR_MAP_DATA = arr; return arr; } }
+          } catch (e) { console.warn("[detail] api failed", e); }
+        }
+        try {
+          var base = document.baseURI || location.href;
+          var r0 = await fetch(new URL("data/chunks/0.bin", base));
+          var r1 = await fetch(new URL("data/chunks/1.bin", base));
+          if (r0.ok && r1.ok) {
+            var b64 = (await r0.text()) + (await r1.text());
+            var bin = atob(b64);
+            var bytes = new Uint8Array(bin.length);
+            for (var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+            var key = window.API_SECRET || "afei-vr-map-2026";
+            var kb = new TextEncoder().encode(key);
+            for (var k=0;k<bytes.length;k++) bytes[k] ^= kb[k%kb.length];
+            var jsonStr = new TextDecoder().decode(bytes);
+            var compact = JSON.parse(jsonStr);
+            var arr2 = compact.map(function(c){return {name:c.n,district:c.d,plate:c.p,url:c.u,scene:c.s,lat:c.la,lng:c.lo}});
+            window.VR_MAP_DATA = arr2;
+            return arr2;
+          }
+        } catch (e) { console.error(e); }
+        try {
+          var r = await fetch(new URL("data/vr-map-data.js", document.baseURI));
+          var txt = await r.text();
+          var m = txt.match(/window\.VR_MAP_DATA\s*=\s*(\[.*\])/s);
+          if (m) { var arr3 = JSON.parse(m[1]); window.VR_MAP_DATA = arr3; return arr3; }
+        } catch (_) {}
+        return [];
+      }
+
+      (async function(){
       var scene = new URLSearchParams(location.search).get("scene") || "";
-      var item = (window.VR_MAP_DATA || []).find(function (r) { return r.scene === scene; });
+      var VR = await loadVR();
+      var item = VR.find(function (r) { return r.scene === scene; });
       document.title = (item ? item.name : "未找到") + " · 阿飞懂房";
 
       if (!item) {
@@ -203,6 +255,7 @@
       } else {
         $("#map-status").textContent = "地图组件未加载";
       }
+      })();
     })();
   </script>
 </body>

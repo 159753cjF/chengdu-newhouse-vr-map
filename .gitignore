@@ -1,2 +1,7 @@
 _cands.txt
 *.output
+# 原始明文数据已移至加密分片与 Worker，禁止误提交明文
+data/vr-data.json
+data/vr-map-data.js.bak
+worker/data/
+data/vr-data.json.bak

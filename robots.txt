@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /data/
+Disallow: /data/chunks/
+Disallow: /data/vr-map-data.js
+Disallow: /data/vr-data.json
+Allow: /
+
+# Sitemap: https://159753cjf.github.io/chengdu-newhouse-vr-map/index.html

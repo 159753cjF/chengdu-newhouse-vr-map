@@ -1,0 +1,16 @@
+name = "chengdu-vr-map-api"
+main = "src/index.js"
+compatibility_date = "2024-08-01"
+
+# 免费版直接部署，无需 KV，数据打包进 Worker（<1MB）
+# 如数据超过 1MB 再切 KV： wrangler kv namespace create VR_DATA
+
+[vars]
+# 允许的前端域名，逗号分隔
+ALLOWED_ORIGINS = "https://159753cjf.github.io,https://chengdu-newhouse-vr-map.pages.dev,http://127.0.0.1:18770,http://localhost:18770"
+
+# 接口签名密钥，需与前端 config.js 的 API_SECRET 保持一致
+API_SECRET = "afei-vr-map-2026"
+
+# 限流：每 IP 每分钟最大请求数
+RATE_LIMIT_PER_MIN = "60"
